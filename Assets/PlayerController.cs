@@ -11,6 +11,8 @@ public class PlayerController : MonoBehaviour
     public Transform leftHand;
     public Transform rightHand;
 
+    public Transform spawnPoint;
+
     public PlayerInput input;
     public float speed = 2.0f;
     public float jumpHeight = 1.0f;
@@ -21,6 +23,11 @@ public class PlayerController : MonoBehaviour
     public float staminaInSeconds = 1f;
     public float stamina = 1f;
     public bool onGround;
+    public bool grabbing = false;
+
+    public Rigidbody ballRigidBody;
+    public float defaultBallAngularDrag;
+    public float grabbedBallAngularDrag;
 
     private LayerMask sphereMask;
 
@@ -32,10 +39,21 @@ public class PlayerController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
+        if (spawnPoint != null)
+        {
+            controller.enabled = false;
+            transform.position = spawnPoint.position + Vector3.up;
+            controller.enabled = true;
+
+            ballTransform.position = spawnPoint.position + Vector3.up + Vector3.forward;
+        }
+
         cameraFollowPoint = ballTransform.position;
         originalLeftHandPosition = leftHand.localPosition;
         originalRightHandPosition = rightHand.localPosition;
         sphereMask = ~LayerMask.NameToLayer("Sphere");
+
+      
     }
 
     void OnForward()
@@ -111,7 +129,7 @@ public class PlayerController : MonoBehaviour
         cameraFollowPoint = Vector3.Lerp(cameraFollowPoint, ballTransform.position, 0.1f);
         controller.transform.LookAt(new Vector3(cameraFollowPoint.x, transform.position.y, cameraFollowPoint.z));
 
-
+        grabbing = false;
         var origin = transform.position - transform.right;
 
         RaycastHit hitInfo;
@@ -120,6 +138,7 @@ public class PlayerController : MonoBehaviour
         if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
         {
             desiredLeftHandPosition = transform.InverseTransformPoint(hitInfo.point);
+            grabbing = true;
         }
         else
         {
@@ -133,10 +152,19 @@ public class PlayerController : MonoBehaviour
         if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
         {
             desiredRightHandPosition = transform.InverseTransformPoint(hitInfo.point);
+            grabbing = true;
         }
         else
         {
             desiredRightHandPosition = originalRightHandPosition;
+        }
+
+        if (grabbing)
+        {
+            ballRigidBody.angularDrag = grabbedBallAngularDrag;
+        } else
+        {
+            ballRigidBody.angularDrag = defaultBallAngularDrag;
         }
 
         leftHand.localPosition = Vector3.Lerp(leftHand.localPosition, desiredLeftHandPosition, 0.1f);
