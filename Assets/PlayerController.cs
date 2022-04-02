@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour
 {
     public Vector3 playerVelocity = Vector3.zero;
+    public Vector3 cameraFollowPoint = Vector3.zero;
     public CharacterController controller;
     public Transform ballTransform;
 
@@ -18,7 +19,7 @@ public class PlayerController : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        cameraFollowPoint = ballTransform.position;
     }
 
     void OnForward()
@@ -42,7 +43,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
         onGround = controller.isGrounded;
 
@@ -51,20 +52,23 @@ public class PlayerController : MonoBehaviour
             playerVelocity.y = 0f;
         }
 
-        Vector3 move = new Vector3(SidewaysInput(), 0, ForwardInput());
+        Vector3 move = new Vector3(SidewaysInput() * 0.8f, 0, ForwardInput());
+        
         controller.Move(transform.rotation * (move * Time.deltaTime * speed));
 
-        controller.transform.LookAt(new Vector3(ballTransform.position.x, transform.position.y, ballTransform.position.z));
-
         // Changes the height position of the player..
-        if (JumpInput() && onGround)
+        if (false && JumpInput() && onGround)
         {
             playerVelocity.y += Mathf.Sqrt(jumpHeight * -3.0f * gravityValue);
         }
 
         playerVelocity.y += gravityValue * Time.deltaTime;
         controller.Move(playerVelocity * Time.deltaTime);
+
+        cameraFollowPoint = Vector3.Lerp(cameraFollowPoint, ballTransform.position, 0.1f);
+        controller.transform.LookAt(new Vector3(cameraFollowPoint.x, transform.position.y, cameraFollowPoint.z));
     }
+
 
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
@@ -72,7 +76,7 @@ public class PlayerController : MonoBehaviour
 
         if (rb != null && !rb.isKinematic)
         {
-            rb.velocity = hit.moveDirection * pushForce;
+            rb.AddForce(hit.moveDirection * pushForce * Time.deltaTime, ForceMode.Force);
         }
     }
 }
