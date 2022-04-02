@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -10,16 +8,34 @@ public class PlayerController : MonoBehaviour
     public CharacterController controller;
     public Transform ballTransform;
 
+    public Transform leftHand;
+    public Transform rightHand;
+
     public PlayerInput input;
     public float speed = 2.0f;
     public float jumpHeight = 1.0f;
     public float gravityValue = -9.81f;
     public float pushForce = 1f;
+    public float sprintMoveMultiplier = 1.3f;
+    public float sprintPushMultiplier = 1.5f;
+    public float staminaInSeconds = 1f;
+    public float stamina = 1f;
     public bool onGround;
+
+    private LayerMask sphereMask;
+
+    private Vector3 originalLeftHandPosition;
+    private Vector3 desiredLeftHandPosition;
+    private Vector3 originalRightHandPosition;
+    private Vector3 desiredRightHandPosition;
+
     // Start is called before the first frame update
     void Start()
     {
         cameraFollowPoint = ballTransform.position;
+        originalLeftHandPosition = leftHand.localPosition;
+        originalRightHandPosition = rightHand.localPosition;
+        sphereMask = ~LayerMask.NameToLayer("Sphere");
     }
 
     void OnForward()
@@ -42,6 +58,28 @@ public class PlayerController : MonoBehaviour
         return input.actions["Jump"].ReadValue<float>() > 0.01f;
     }
 
+    bool SprintInput()
+    {
+        return input.actions["Sprint"].ReadValue<float>() > 0.01f;
+    }
+
+    private void Update()
+    {
+        if (SprintInput())
+        {
+            stamina -= Time.deltaTime;
+        }
+        else
+        {
+            if (SidewaysInput() < 0.01f && ForwardInput() < 0.01f)
+            {
+                stamina += Time.deltaTime / 2f;
+            }
+        }
+
+        stamina = Mathf.Clamp(stamina, 0, staminaInSeconds);
+    }
+
     // Update is called once per frame
     void FixedUpdate()
     {
@@ -53,7 +91,12 @@ public class PlayerController : MonoBehaviour
         }
 
         Vector3 move = new Vector3(SidewaysInput() * 0.8f, 0, ForwardInput());
-        
+
+        if (SprintInput() && stamina > 0.1f)
+        {
+            move *= sprintMoveMultiplier;
+        }
+
         controller.Move(transform.rotation * (move * Time.deltaTime * speed));
 
         // Changes the height position of the player..
@@ -67,6 +110,37 @@ public class PlayerController : MonoBehaviour
 
         cameraFollowPoint = Vector3.Lerp(cameraFollowPoint, ballTransform.position, 0.1f);
         controller.transform.LookAt(new Vector3(cameraFollowPoint.x, transform.position.y, cameraFollowPoint.z));
+
+
+        var origin = transform.position - transform.right;
+
+        RaycastHit hitInfo;
+        Ray ray = new Ray(origin, ballTransform.position - origin);
+
+        if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
+        {
+            desiredLeftHandPosition = transform.InverseTransformPoint(hitInfo.point);
+        }
+        else
+        {
+            desiredLeftHandPosition = originalLeftHandPosition;
+        }
+
+        origin = transform.position + transform.right;
+
+        ray = new Ray(origin, ballTransform.position - origin);
+
+        if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
+        {
+            desiredRightHandPosition = transform.InverseTransformPoint(hitInfo.point);
+        }
+        else
+        {
+            desiredRightHandPosition = originalRightHandPosition;
+        }
+
+        leftHand.localPosition = Vector3.Lerp(leftHand.localPosition, desiredLeftHandPosition, 0.1f);
+        rightHand.localPosition = Vector3.Lerp(rightHand.localPosition, desiredRightHandPosition, 0.1f);
     }
 
 
@@ -76,7 +150,14 @@ public class PlayerController : MonoBehaviour
 
         if (rb != null && !rb.isKinematic)
         {
-            rb.AddForce(hit.moveDirection * pushForce * Time.deltaTime, ForceMode.Force);
+            var force = hit.moveDirection * pushForce * Time.deltaTime;
+
+            if (SprintInput() && stamina > 0.1f)
+            {
+                force *= sprintPushMultiplier;
+            }
+
+            rb.AddForce(force, ForceMode.Force);
         }
     }
 }

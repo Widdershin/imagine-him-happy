@@ -46,7 +46,7 @@
                     "interactions": ""
                 },
                 {
-                    "name": "Walk",
+                    "name": "Sprint",
                     "type": "Button",
                     "id": "a851d9bb-4431-4759-ad0d-e69ab3a13a75",
                     "expectedControlType": "Button",
@@ -117,7 +117,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Walk",
+                    "action": "Sprint",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
