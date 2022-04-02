@@ -89,10 +89,7 @@ public class PlayerController : MonoBehaviour
         }
         else
         {
-            if (SidewaysInput() < 0.01f && ForwardInput() < 0.01f)
-            {
-                stamina += Time.deltaTime / 2f;
-            }
+            stamina += Time.deltaTime / 2f;
         }
 
         stamina = Mathf.Clamp(stamina, 0, staminaInSeconds);
@@ -108,14 +105,16 @@ public class PlayerController : MonoBehaviour
             playerVelocity.y = 0f;
         }
 
-        Vector3 move = new Vector3(SidewaysInput() * 0.8f, 0, ForwardInput());
+        Vector3 move = ((transform.forward * ForwardInput()) + (transform.right * SidewaysInput() * 0.8f));
 
         if (SprintInput() && stamina > 0.1f)
         {
             move *= sprintMoveMultiplier;
         }
 
-        controller.Move(transform.rotation * (move * Time.deltaTime * speed));
+        playerVelocity += move * 0.3f;
+        playerVelocity.x *= 0.95f;
+        playerVelocity.z *= 0.95f;
 
         // Changes the height position of the player..
         if (false && JumpInput() && onGround)
