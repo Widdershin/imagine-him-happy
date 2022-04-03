@@ -21,9 +21,9 @@ public class Spring3
         z.SetTarget(target.z);
     }
 
-    public Vector3 Update(float deltaTime)
+    public Vector3 Update()
     {
-        return new Vector3(x.Update(deltaTime), y.Update(deltaTime), z.Update(deltaTime));
+        return new Vector3(x.Update(), y.Update(), z.Update());
     }
 }
 public class Spring
@@ -35,7 +35,7 @@ public class Spring
     private float velocity;
     private float target;
 
-    public Spring(float value, float acceleration = 0.25f, float dampening = 0.98f)
+    public Spring(float value, float acceleration = 0.25f, float dampening = 0.02f)
     {
         this.value = value;
         this.target = value;
@@ -49,14 +49,15 @@ public class Spring
         this.target = newTarget;
     }
 
-    public float Update(float deltaTime)
+    public float Update()
     {
+        var normalDelta = Time.deltaTime * 60f;
         var distance = this.target - this.value;
 
-        this.velocity += this.acceleration * distance;
-        this.velocity *= this.dampening;
+        this.velocity += this.acceleration * distance * normalDelta;
+        this.velocity *= (1 - this.dampening * normalDelta);
 
-        this.value += this.velocity * deltaTime;
+        this.value += this.velocity * Time.deltaTime;
 
         return this.value;
     }
@@ -97,7 +98,7 @@ public class PlayerController : MonoBehaviour
     public float grabbedBallAngularDrag;
 
     public float handAcceleration = 0.25f;
-    public float handDampening = 0.98f;
+    public float handDampening = 0.02f;
 
     private LayerMask sphereMask;
     private Spring3 leftHandSpring;
@@ -165,7 +166,7 @@ public class PlayerController : MonoBehaviour
             stamina += Time.deltaTime / 2f;
         }
 
-        var squished = squishSpring.Update(Time.deltaTime);
+        var squished = squishSpring.Update();
 
         stamina = Mathf.Clamp(stamina, 0, staminaInSeconds);
         bodyTransform.localScale = new Vector3(1, 0.6159f - (0.6159f * squished / 1.5f), 1);
@@ -178,8 +179,8 @@ public class PlayerController : MonoBehaviour
         }
 
 
-        leftHand.localPosition = leftHandSpring.Update(Time.deltaTime);
-        rightHand.localPosition = rightHandSpring.Update(Time.deltaTime);
+        leftHand.localPosition = leftHandSpring.Update();
+        rightHand.localPosition = rightHandSpring.Update();
     }
 
     // Update is called once per frame

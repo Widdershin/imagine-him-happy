@@ -1073,7 +1073,7 @@ MonoBehaviour:
   defaultBallAngularDrag: 0.05
   grabbedBallAngularDrag: 8.6
   handAcceleration: 0.2
-  handDampening: 0.98
+  handDampening: 0.02
 --- !u!1 &963194225
 GameObject:
   m_ObjectHideFlags: 0
