@@ -1,12 +1,74 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+public class Spring3
+{
+    private Spring x;
+    private Spring y;
+    private Spring z;
+
+    public Spring3(Vector3 value, float acceleration = 0.25f, float dampening = 0.98f)
+    {
+        x = new Spring(value.x, acceleration, dampening);  
+        y = new Spring(value.y, acceleration, dampening);  
+        z = new Spring(value.z, acceleration, dampening);
+    }
+
+    public void SetTarget(Vector3 target)
+    {
+        x.SetTarget(target.x);
+        y.SetTarget(target.y);
+        z.SetTarget(target.z);
+    }
+
+    public Vector3 Update(float deltaTime)
+    {
+        return new Vector3(x.Update(deltaTime), y.Update(deltaTime), z.Update(deltaTime));
+    }
+}
+public class Spring
+{
+    public float value;
+    public float acceleration;
+    public float dampening;
+
+    private float velocity;
+    private float target;
+
+    public Spring(float value, float acceleration = 0.25f, float dampening = 0.98f)
+    {
+        this.value = value;
+        this.target = value;
+        this.acceleration = acceleration;
+        this.dampening = dampening;
+        this.velocity = 0f;
+    }
+
+    public void SetTarget(float newTarget)
+    {
+        this.target = newTarget;
+    }
+
+    public float Update(float deltaTime)
+    {
+        var distance = this.target - this.value;
+
+        this.velocity += this.acceleration * distance;
+        this.velocity *= this.dampening;
+
+        this.value += this.velocity * deltaTime;
+
+        return this.value;
+    }
+}
+
 public class PlayerController : MonoBehaviour
 {
     public Vector3 playerVelocity = Vector3.zero;
     public Vector3 cameraFollowPoint = Vector3.zero;
     public CharacterController controller;
     public Transform ballTransform;
+    public Transform bodyTransform;
 
     public Transform leftHand;
     public Transform rightHand;
@@ -23,14 +85,23 @@ public class PlayerController : MonoBehaviour
     public float staminaInSeconds = 1f;
     public float stamina = 1f;
     public bool onGround;
+    public bool rockAbove;
     public bool grabbing = false;
+    public float squished = 0f;
+    public float squishedDelay = 0f;
+
+    public Spring squishSpring = new Spring(0f);
 
     public Rigidbody ballRigidBody;
     public float defaultBallAngularDrag;
     public float grabbedBallAngularDrag;
 
-    private LayerMask sphereMask;
+    public float handAcceleration = 0.25f;
+    public float handDampening = 0.98f;
 
+    private LayerMask sphereMask;
+    private Spring3 leftHandSpring;
+    private Spring3 rightHandSpring;
     private Vector3 originalLeftHandPosition;
     private Vector3 desiredLeftHandPosition;
     private Vector3 originalRightHandPosition;
@@ -45,15 +116,17 @@ public class PlayerController : MonoBehaviour
             transform.position = spawnPoint.position + Vector3.up;
             controller.enabled = true;
 
-            ballTransform.position = spawnPoint.position + Vector3.up + Vector3.forward;
+            ballTransform.position = spawnPoint.position + Vector3.up * 4f;
         }
 
         cameraFollowPoint = ballTransform.position;
         originalLeftHandPosition = leftHand.localPosition;
         originalRightHandPosition = rightHand.localPosition;
-        sphereMask = ~LayerMask.NameToLayer("Sphere");
 
-      
+        leftHandSpring = new Spring3(originalLeftHandPosition, handAcceleration, handDampening);
+        rightHandSpring = new Spring3(originalRightHandPosition, handAcceleration, handDampening);
+
+        sphereMask = ~LayerMask.NameToLayer("Sphere");
     }
 
     void OnForward()
@@ -92,7 +165,21 @@ public class PlayerController : MonoBehaviour
             stamina += Time.deltaTime / 2f;
         }
 
+        var squished = squishSpring.Update(Time.deltaTime);
+
         stamina = Mathf.Clamp(stamina, 0, staminaInSeconds);
+        bodyTransform.localScale = new Vector3(1, 0.6159f - (0.6159f * squished / 1.5f), 1);
+        controller.height = 1.25f - (1.25f * squished) / 1.5f;
+        controller.radius = 0.36f - (0.36f * squished) / 1.5f;
+
+        if (!rockAbove && squished > 0.99f)
+        {
+            squishSpring.SetTarget(0f);
+        }
+
+
+        leftHand.localPosition = leftHandSpring.Update(Time.deltaTime);
+        rightHand.localPosition = rightHandSpring.Update(Time.deltaTime);
     }
 
     // Update is called once per frame
@@ -125,7 +212,8 @@ public class PlayerController : MonoBehaviour
         playerVelocity.y += gravityValue * Time.deltaTime;
         controller.Move(playerVelocity * Time.deltaTime);
 
-        cameraFollowPoint = Vector3.Lerp(cameraFollowPoint, ballTransform.position, 0.1f);
+        /*        cameraFollowPoint = Vector3.Lerp(cameraFollowPoint, ballTransform.position, 0.1f);*/
+        cameraFollowPoint = ballTransform.position;
         controller.transform.LookAt(new Vector3(cameraFollowPoint.x, transform.position.y, cameraFollowPoint.z));
 
         grabbing = false;
@@ -136,12 +224,12 @@ public class PlayerController : MonoBehaviour
 
         if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
         {
-            desiredLeftHandPosition = transform.InverseTransformPoint(hitInfo.point);
+            leftHandSpring.SetTarget(transform.InverseTransformPoint(hitInfo.point));
             grabbing = true;
         }
         else
         {
-            desiredLeftHandPosition = originalLeftHandPosition;
+            leftHandSpring.SetTarget(originalLeftHandPosition);
         }
 
         origin = transform.position + transform.right;
@@ -150,12 +238,12 @@ public class PlayerController : MonoBehaviour
 
         if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
         {
-            desiredRightHandPosition = transform.InverseTransformPoint(hitInfo.point);
+            rightHandSpring.SetTarget(transform.InverseTransformPoint(hitInfo.point));
             grabbing = true;
         }
         else
         {
-            desiredRightHandPosition = originalRightHandPosition;
+            rightHandSpring.SetTarget(originalRightHandPosition);
         }
 
         if (grabbing)
@@ -165,9 +253,6 @@ public class PlayerController : MonoBehaviour
         {
             ballRigidBody.angularDrag = defaultBallAngularDrag;
         }
-
-        leftHand.localPosition = Vector3.Lerp(leftHand.localPosition, desiredLeftHandPosition, 0.1f);
-        rightHand.localPosition = Vector3.Lerp(rightHand.localPosition, desiredRightHandPosition, 0.1f);
     }
 
 
@@ -185,6 +270,23 @@ public class PlayerController : MonoBehaviour
             }
 
             rb.AddForce(force, ForceMode.Force);
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.gameObject.tag == "Boulder")
+        {
+            squishSpring.SetTarget(1f);
+            rockAbove = true;
+        }
+    }
+
+    private void OnTriggerExit(Collider other)
+    {
+        if (other.gameObject.tag == "Boulder")
+        {
+            rockAbove = false;
         }
     }
 }
