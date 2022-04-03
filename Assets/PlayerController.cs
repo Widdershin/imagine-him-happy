@@ -7,7 +7,7 @@ public class Spring3
     private Spring y;
     private Spring z;
 
-    public Spring3(Vector3 value, float acceleration = 0.25f, float dampening = 0.98f)
+    public Spring3(Vector3 value, float acceleration = 2f, float dampening = 0.1f)
     {
         x = new Spring(value.x, acceleration, dampening);  
         y = new Spring(value.y, acceleration, dampening);  
@@ -35,7 +35,7 @@ public class Spring
     private float velocity;
     private float target;
 
-    public Spring(float value, float acceleration = 0.25f, float dampening = 0.02f)
+    public Spring(float value, float acceleration = 2f, float dampening = 0.1f)
     {
         this.value = value;
         this.target = value;
@@ -90,6 +90,7 @@ public class PlayerController : MonoBehaviour
     public bool grabbing = false;
     public float squished = 0f;
     public float squishedDelay = 0f;
+    public Spring3 bodyRotation = new Spring3(Vector3.zero);
 
     public Spring squishSpring = new Spring(0f);
 
@@ -178,6 +179,15 @@ public class PlayerController : MonoBehaviour
             squishSpring.SetTarget(0f);
         }
 
+        if (ForwardInput() > 0 && grabbing)
+        {
+            bodyRotation.SetTarget(new Vector3(12f, 0, 0));
+        } else
+        {
+            bodyRotation.SetTarget(new Vector3(0, 0, 0));
+        }
+
+        bodyTransform.localEulerAngles = bodyRotation.Update();
 
         leftHand.localPosition = leftHandSpring.Update();
         rightHand.localPosition = rightHandSpring.Update();
