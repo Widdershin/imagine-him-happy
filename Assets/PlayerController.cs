@@ -179,9 +179,16 @@ public class PlayerController : MonoBehaviour
             squishSpring.SetTarget(0f);
         }
 
-        if (ForwardInput() > 0 && grabbing)
+        if (ForwardInput() > 0.01f && grabbing)
         {
-            bodyRotation.SetTarget(new Vector3(12f, 0, 0));
+            if (SprintInput())
+            {
+                bodyRotation.SetTarget(new Vector3(24f, 0, 0));
+            }
+            else
+            {
+                bodyRotation.SetTarget(new Vector3(12f, 0, 0));
+            }
         } else
         {
             bodyRotation.SetTarget(new Vector3(0, 0, 0));
@@ -271,16 +278,20 @@ public class PlayerController : MonoBehaviour
     {
         Rigidbody rb = hit.collider.attachedRigidbody;
 
+
         if (rb != null && !rb.isKinematic)
         {
-            var force = hit.moveDirection * pushForce * Time.deltaTime;
+            var pushPosition = transform.position + transform.forward / 4f + transform.up / 2f;
+            var force = (ballTransform.position - pushPosition).normalized * pushForce * Time.deltaTime;
 
             if (SprintInput() && stamina > 0.1f)
             {
                 force *= sprintPushMultiplier;
             }
 
-            rb.AddForce(force, ForceMode.Force);
+            Debug.DrawRay(pushPosition, force, Color.red);
+
+            rb.AddForceAtPosition(force, pushPosition, ForceMode.Force);
         }
     }
 
