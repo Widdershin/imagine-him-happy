@@ -1,14 +1,17 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 public class Spring3
 {
+    public Vector3 initialTarget;
     private Spring x;
     private Spring y;
     private Spring z;
 
     public Spring3(Vector3 value, float acceleration = 2f, float dampening = 0.1f)
     {
+        initialTarget = value;
         x = new Spring(value.x, acceleration, dampening);  
         y = new Spring(value.y, acceleration, dampening);  
         z = new Spring(value.z, acceleration, dampening);
@@ -19,6 +22,11 @@ public class Spring3
         x.SetTarget(target.x);
         y.SetTarget(target.y);
         z.SetTarget(target.z);
+    }
+
+    public void ResetTarget()
+    {
+        SetTarget(initialTarget);
     }
 
     public Vector3 Update()
@@ -32,7 +40,7 @@ public class Spring
     public float acceleration;
     public float dampening;
 
-    private float velocity;
+    public float velocity;
     private float target;
 
     public Spring(float value, float acceleration = 2f, float dampening = 0.1f)
@@ -70,11 +78,21 @@ public class PlayerController : MonoBehaviour
     public CharacterController controller;
     public Transform ballTransform;
     public Transform bodyTransform;
+    public TMPro.TextMeshProUGUI noticeText;
 
     public Transform leftHand;
     public Transform rightHand;
 
     public Transform spawnPoint;
+
+    public Spring3 cameraPositionSpring;
+    public Spring3 cameraRotationSpring;
+    public Vector3 cameraLookDownOffset;
+    public Vector3 cameraLookDownRotation;
+
+    public new Camera camera;
+    public Image staminaImage;
+
 
     public PlayerInput input;
     public float speed = 2.0f;
@@ -121,6 +139,9 @@ public class PlayerController : MonoBehaviour
             ballTransform.position = spawnPoint.position + Vector3.up * 4f;
         }
 
+        cameraPositionSpring = new Spring3(camera.transform.localPosition, 1f, 0.2f);
+        cameraRotationSpring = new Spring3(camera.transform.localEulerAngles, 1f, 0.2f);
+
         cameraFollowPoint = ballTransform.position;
         originalLeftHandPosition = leftHand.localPosition;
         originalRightHandPosition = rightHand.localPosition;
@@ -129,11 +150,6 @@ public class PlayerController : MonoBehaviour
         rightHandSpring = new Spring3(originalRightHandPosition, handAcceleration, handDampening);
 
         sphereMask = ~LayerMask.NameToLayer("Sphere");
-    }
-
-    void OnForward()
-    {
-        playerVelocity.y = 1;
     }
 
     float ForwardInput()
@@ -156,6 +172,11 @@ public class PlayerController : MonoBehaviour
         return input.actions["Sprint"].ReadValue<float>() > 0.01f;
     }
 
+    public void SetNoticeBoard(string text)
+    {
+        noticeText.text = text;
+    }
+
     private void Update()
     {
         if (SprintInput())
@@ -170,18 +191,19 @@ public class PlayerController : MonoBehaviour
         var squished = squishSpring.Update();
 
         stamina = Mathf.Clamp(stamina, 0, staminaInSeconds);
+        staminaImage.fillAmount = stamina / staminaInSeconds;
         bodyTransform.localScale = new Vector3(1, 0.6159f - (0.6159f * squished / 1.5f), 1);
         controller.height = 1.25f - (1.25f * squished) / 1.5f;
         controller.radius = 0.36f - (0.36f * squished) / 1.5f;
 
-        if (!rockAbove && squished > 0.99f)
+        if (!rockAbove && squished > 0.99f && squishSpring.velocity < 0.01f)
         {
             squishSpring.SetTarget(0f);
         }
 
         if (ForwardInput() > 0.01f && grabbing)
         {
-            if (SprintInput())
+            if (SprintInput() && stamina > 0.1f)
             {
                 bodyRotation.SetTarget(new Vector3(20f, 0, 0));
             }
@@ -198,6 +220,27 @@ public class PlayerController : MonoBehaviour
 
         leftHand.localPosition = leftHandSpring.Update();
         rightHand.localPosition = rightHandSpring.Update();
+
+        var ballVerticalDistance = transform.position.y - ballTransform.position.y;
+
+        if (ballVerticalDistance > 2f)
+        {
+            var oldCameraRotation = camera.transform.localRotation;
+            camera.transform.LookAt(ballTransform.position);
+            var desiredCameraAngle = camera.transform.localEulerAngles;
+            camera.transform.localRotation = oldCameraRotation;
+
+            cameraPositionSpring.SetTarget(Vector3.Lerp(cameraPositionSpring.initialTarget, cameraLookDownOffset, desiredCameraAngle.x / 80f));
+
+            cameraRotationSpring.SetTarget(new Vector3(desiredCameraAngle.x, 0, 0));
+        } else
+        {
+            cameraPositionSpring.ResetTarget();
+            cameraRotationSpring.ResetTarget();
+        }
+
+        camera.transform.localPosition = cameraPositionSpring.Update();
+        camera.transform.localEulerAngles = cameraRotationSpring.Update();
     }
 
     // Update is called once per frame
@@ -210,7 +253,18 @@ public class PlayerController : MonoBehaviour
             playerVelocity.y = 0f;
         }
 
-        Vector3 move = ((transform.forward * ForwardInput()) + (transform.right * SidewaysInput() * 0.8f));
+        Vector3 move = ((transform.forward * ForwardInput()) + (transform.right * SidewaysInput() * 0.6f));
+
+        var distanceToBall = transform.position - ballTransform.position;
+
+        distanceToBall.y = 0f;
+
+        if (distanceToBall.magnitude < 0.5f && ForwardInput() > 0.01f)
+        {
+            move = (transform.right * SidewaysInput() * 0.6f);
+
+        }
+
 
         if (SprintInput() && stamina > 0.1f)
         {
@@ -236,13 +290,19 @@ public class PlayerController : MonoBehaviour
 
         grabbing = false;
         var origin = transform.position - transform.right;
+        var ballOnSameLevel = Mathf.Abs((transform.position.y - ballTransform.position.y)) < 0.8f;
 
         RaycastHit hitInfo;
         Ray ray = new Ray(origin, ballTransform.position - origin);
 
         if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
         {
-            leftHandSpring.SetTarget(transform.InverseTransformPoint(hitInfo.point));
+            Vector3 offset = Vector3.zero;
+            if (ballOnSameLevel && ForwardInput() > 0.01f)
+            {
+                offset = new Vector3(0, Mathf.Sin(Time.realtimeSinceStartup * 5f) / 10f);
+            } 
+            leftHandSpring.SetTarget(transform.InverseTransformPoint(hitInfo.point) + offset);
             grabbing = true;
         }
         else
@@ -256,7 +316,12 @@ public class PlayerController : MonoBehaviour
 
         if (Physics.Raycast(ray, out hitInfo, 1.3f, sphereMask))
         {
-            rightHandSpring.SetTarget(transform.InverseTransformPoint(hitInfo.point));
+            Vector3 offset = Vector3.zero;
+            if (ballOnSameLevel && ForwardInput() > 0.01f)
+            {
+                offset = new Vector3(0, -Mathf.Sin(Time.realtimeSinceStartup * 5f) / 10f);
+            }
+            rightHandSpring.SetTarget(transform.InverseTransformPoint(hitInfo.point) + offset);
             grabbing = true;
         }
         else
