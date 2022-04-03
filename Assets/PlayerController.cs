@@ -127,6 +127,7 @@ public class PlayerController : MonoBehaviour
     private Vector3 originalRightHandPosition;
     private Vector3 desiredRightHandPosition;
 
+
     // Start is called before the first frame update
     void Start()
     {
@@ -205,11 +206,15 @@ public class PlayerController : MonoBehaviour
         {
             if (SprintInput() && stamina > 0.1f)
             {
-                bodyRotation.SetTarget(new Vector3(20f, 0, 0));
+                var offset = Mathf.Sin(Time.realtimeSinceStartup * 8f) * 5f;
+
+                bodyRotation.SetTarget(new Vector3(20f + offset, 0, 0));
             }
             else
             {
-                bodyRotation.SetTarget(new Vector3(12f, 0, 0));
+                var offset = Mathf.Sin(Time.realtimeSinceStartup * 5f) * 5f;
+
+                bodyRotation.SetTarget(new Vector3(12f + offset, 0, 0));
             }
         } else
         {
@@ -253,7 +258,7 @@ public class PlayerController : MonoBehaviour
             playerVelocity.y = 0f;
         }
 
-        Vector3 move = ((transform.forward * ForwardInput()) + (transform.right * SidewaysInput() * 0.6f));
+        Vector3 move = ((transform.forward * ForwardInput()) + (transform.right * SidewaysInput() * 0.5f));
 
         var distanceToBall = transform.position - ballTransform.position;
 
@@ -261,7 +266,7 @@ public class PlayerController : MonoBehaviour
 
         if (distanceToBall.magnitude < 0.5f && ForwardInput() > 0.01f)
         {
-            move = (transform.right * SidewaysInput() * 0.6f);
+            move = (transform.right * SidewaysInput() * 0.5f);
 
         }
 
