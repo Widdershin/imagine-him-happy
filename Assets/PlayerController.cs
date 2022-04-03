@@ -183,7 +183,7 @@ public class PlayerController : MonoBehaviour
         {
             if (SprintInput())
             {
-                bodyRotation.SetTarget(new Vector3(24f, 0, 0));
+                bodyRotation.SetTarget(new Vector3(20f, 0, 0));
             }
             else
             {
